@@ -1,5 +1,5 @@
 {
-  "name": "placeholder-model-2",
+  "name": "agon-preview",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
@@ -30,7 +30,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:apk": "eas build -p android --profile preview --non-interactive"
   },
   "private": true
 }
