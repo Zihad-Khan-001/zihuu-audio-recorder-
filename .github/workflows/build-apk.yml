@@ -25,14 +25,26 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Export JS Bundle & Generate Native Project
+      - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
 
-      - name: Build Debug APK with Gradle
+      - name: Create Bundle and Assets
+        run: |
+          cd android
+          ./gradlew createDebugCoverageReportfile || true
+          mkdir -p app/src/main/assets
+          npx expo export --platform android
+
+      - name: Copy Bundle to Native Assets
+        run: |
+          cp -r dist/_expo/static/js/android/* android/app/src/main/assets/index.android.bundle 2>/dev/null || true
+          cp -r dist/* android/app/src/main/assets/ 2>/dev/null || true
+
+      - name: Build APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload Working APK Artifact
         uses: actions/upload-artifact@v4
