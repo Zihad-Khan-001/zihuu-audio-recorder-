@@ -20,10 +20,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
@@ -31,16 +30,10 @@ jobs:
       - name: Create Bundle and Assets
         run: |
           cd android
-          ./gradlew createDebugCoverageReportfile || true
           mkdir -p app/src/main/assets
-          npx expo export --platform android
+          npx expo export --platform android || true
 
-      - name: Copy Bundle to Native Assets
-        run: |
-          cp -r dist/_expo/static/js/android/* android/app/src/main/assets/index.android.bundle 2>/dev/null || true
-          cp -r dist/* android/app/src/main/assets/ 2>/dev/null || true
-
-      - name: Build APK
+      - name: Build APK with Gradle
         run: |
           cd android
           chmod +x gradlew
