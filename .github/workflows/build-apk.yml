@@ -25,27 +25,17 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Generate Android Native Project
+      - name: Export JS Bundle & Generate Native Project
         run: npx expo prebuild --platform android --clean
 
-      - name: Bundle JavaScript & Assets
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file index.ts \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/
-
-      - name: Build Standalone APK with Gradle
+      - name: Build Debug APK with Gradle
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
       - name: Upload Working APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zihuu-audio-recorder-working-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          name: zihuu-audio-recorder-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
