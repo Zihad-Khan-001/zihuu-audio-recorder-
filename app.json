@@ -4,29 +4,40 @@
     "slug": "zihuu-audio-recorder",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./icon.png",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121212"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.zihuu.audiorecorder",
+      "adaptiveIcon": {
+        "foregroundImage": "./android-icon-foreground.png",
+        "backgroundColor": "#121212"
+      },
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
-      ],
-      "predictiveBackGestureEnabled": false
+      ]
     },
-    "web": {},
-    "platforms": [
-      "ios",
-      "android",
-      "web"
-    ],
+    "web": {
+      "favicon": "./favicon.png"
+    },
     "plugins": [
       "expo-font",
-      "expo-av"
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow zihuu audio recorder to access your microphone."
+        }
+      ]
     ]
   }
 }
