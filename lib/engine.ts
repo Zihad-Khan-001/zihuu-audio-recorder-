@@ -207,6 +207,7 @@ class Engine {
   private pGraphWired = false;
   private pUrlA = '';
   private pUrlB = '';
+  private pRaf = 0;
 
   // --- native (expo-av) ---
   private nRec: AvAudio.Recording | null = null;
@@ -573,7 +574,6 @@ class Engine {
     this.pUrlA = rawUrl;
     this.pUrlB = masteredUrl || '';
     if (!this.isWeb) {
-      // native: reset expo-av sound so next play loads the new take
       if (this.nSound) {
         this.nSound.unloadAsync().catch(() => {});
         this.nSound = null;
@@ -635,129 +635,97 @@ class Engine {
   async playerPlayPause() {
     if (!this.isWeb) return this.nativePlayPause();
     const el = this.currentEl();
-    if (!el || !el.src) return;
+    if (!el) return;
     this.ensureCtx();
     if (el.paused || el.ended) {
-      try { await el.play(); this.startPlaybackMeter(); } catch {}
+      try {
+        await el.play();
+        this.startPlaybackMeter();
+      } catch {}
     } else {
       el.pause();
+      this.stopPlaybackMeter();
     }
     this.pushPlayerState();
   }
 
-  playerSeekMs(ms: number) {
-    if (!this.isWeb) return;
+  async playerSeek(ms: number) {
+    if (!this.isWeb) return this.nativeSeek(ms);
     const el = this.currentEl();
-    if (!el || !isFinite(el.duration)) return;
-    el.currentTime = clamp(ms / 1000, 0, el.duration);
+    if (el) el.currentTime = ms / 1000;
     this.pushPlayerState();
-  }
-
-  playerSeekRatio(r: number) {
-    if (!this.isWeb) {
-      if (this.nSound) {
-        this.nSound
-          .getStatusAsync()
-          .then((st: any) => {
-            if (st?.isLoaded && st.durationMillis) {
-              this.nSound?.setPositionAsync(
-                Math.max(0, Math.min(1, r)) * st.durationMillis
-              );
-            }
-          })
-          .catch(() => {});
-      }
-      return;
-    }
-    const el = this.currentEl();
-    if (!el || !isFinite(el.duration)) return;
-    el.currentTime = clamp(r, 0, 1) * el.duration;
-    this.pushPlayerState();
-  }
-
-  playerSnapshot(): PlayerSnapshot {
-    const el = this.currentEl();
-    const dur = el && isFinite(el.duration) ? el.duration * 1000 : 0;
-    return {
-      playing: !!el && !el.paused && !el.ended,
-      positionMs: el ? el.currentTime * 1000 : 0,
-      durationMs: dur,
-      mode: this.mode,
-    };
   }
 
   private pushPlayerState() {
-    this.emit('player', this.playerSnapshot());
+    const el = this.currentEl();
+    const playing = el ? !el.paused && !el.ended : false;
+    const pos = el ? el.currentTime * 1000 : 0;
+    const dur = el && isFinite(el.duration) ? el.duration * 1000 : 0;
+    this.emit('player', { playing, positionMs: pos, durationMs: dur, mode: this.mode });
   }
 
-  private playbackRaf = 0;
   private startPlaybackMeter() {
-    cancelAnimationFrame(this.playbackRaf);
-    const freq = new Uint8Array(this.pAnalyser ? this.pAnalyser.frequencyBinCount : 512);
+    cancelAnimationFrame(this.pRaf);
+    if (!this.pAnalyser) return;
+    const freq = new Uint8Array(this.pAnalyser.frequencyBinCount);
+    const time = new Uint8Array(this.pAnalyser.fftSize);
     const loop = () => {
       const el = this.currentEl();
-      if (!el || el.paused || el.ended) { this.pushPlayerState(); return; }
-      if (this.pAnalyser) {
-        this.pAnalyser.getByteFrequencyData(freq);
-        const minB = 3, maxB = freq.length - 1;
-        for (let i = 0; i < 64; i++) {
-          const t1 = i / 64, t2 = (i + 1) / 64;
-          const b1 = Math.floor(minB * Math.pow(maxB / minB, t1));
-          const b2 = Math.max(b1 + 1, Math.floor(minB * Math.pow(maxB / minB, t2)));
-          let m = 0;
-          for (let b = b1; b < b2 && b < maxB; b++) if (freq[b] > m) m = freq[b];
-          const v = Math.pow(m / 255, 0.85);
-          this.bars[i] = v > this.bars[i] ? v : this.bars[i] * 0.86;
-        }
-        this.emit('levels', Array.from(this.bars), -20, -8);
+      if (!el || el.paused || el.ended) return;
+      this.pAnalyser!.getByteFrequencyData(freq);
+      this.pAnalyser!.getByteTimeDomainData(time);
+      const minB = 3, maxB = freq.length - 1;
+      for (let i = 0; i < 64; i++) {
+        const t1 = i / 64, t2 = (i + 1) / 64;
+        const b1 = Math.floor(minB * Math.pow(maxB / minB, t1));
+        const b2 = Math.max(b1 + 1, Math.floor(minB * Math.pow(maxB / minB, t2)));
+        let m = 0;
+        for (let b = b1; b < b2 && b < maxB; b++) if (freq[b] > m) m = freq[b];
+        const v = Math.pow(m / 255, 0.85);
+        this.bars[i] = v > this.bars[i] ? v : this.bars[i] * 0.86;
       }
+      let sum = 0, pk = 0;
+      for (let i = 0; i < time.length; i++) {
+        const d = (time[i] - 128) / 128;
+        sum += d * d;
+        const a = d < 0 ? -d : d;
+        if (a > pk) pk = a;
+      }
+      const rms = Math.sqrt(sum / time.length);
+      const rmsDb = clamp(20 * Math.log10(rms + 1e-7), -72, 0);
+      const peakDb = clamp(20 * Math.log10(pk + 1e-7), -72, 0);
+      this.emit('levels', Array.from(this.bars), rmsDb, peakDb);
       this.pushPlayerState();
-      this.playbackRaf = requestAnimationFrame(loop);
+      this.pRaf = requestAnimationFrame(loop);
     };
-    this.playbackRaf = requestAnimationFrame(loop);
+    this.pRaf = requestAnimationFrame(loop);
   }
+
   private stopPlaybackMeter() {
-    cancelAnimationFrame(this.playbackRaf);
+    cancelAnimationFrame(this.pRaf);
   }
 
-  stopPlayer() {
-    if (!this.isWeb) return;
-    this.stopPlaybackMeter();
-    [this.elA, this.elB].forEach((el) => {
-      if (el && !el.paused) el.pause();
-    });
-    this.pushPlayerState();
-  }
-
-  // ================= NATIVE (expo-av fallback) =================
+  // ================= NATIVE EXPO-AV FALLBACK =================
 
   private async nativeStart() {
-    const perm = await AvAudio.requestPermissionsAsync();
-    if (!perm.granted) throw new Error('Microphone permission denied');
-    await AvAudio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    await AvAudio.requestPermissionsAsync();
+    await AvAudio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+    });
     const rec = new AvAudio.Recording();
-    await rec.prepareToRecordAsync({
-      ...AvAudio.RecordingOptionsPresets.HIGH_QUALITY,
-      isMeteringEnabled: true,
-    } as any);
-    rec.setProgressUpdateInterval(80);
-    rec.setOnRecordingStatusUpdate((st: any) => {
+    await rec.prepareToRecordAsync(AvAudio.RecordingOptionsPresets.HIGH_QUALITY);
+    rec.setOnRecordingStatusUpdate((st) => {
       if (st.isRecording) {
-        this.emit('tick', st.durationMillis || 0);
-        const m = typeof st.metering === 'number' ? st.metering : -50;
-        this.nMeter = m;
-        const lvl = clamp((m + 55) / 45, 0, 1);
-        for (let i = 0; i < 64; i++) {
-          const shape = Math.exp(-Math.pow((i - 14) / 16, 2)) * 0.85 + 0.15 * Math.random();
-          const v = clamp(lvl * shape * (0.8 + Math.random() * 0.4), 0, 1);
-          this.bars[i] = v > this.bars[i] ? v : this.bars[i] * 0.86;
-        }
+        this.emit('tick', st.durationMillis);
+        const m = st.metering ?? -60;
+        const norm = Math.pow(clamp((m + 60) / 60, 0, 1), 1.5);
+        for (let i = 0; i < 64; i++) this.bars[i] = norm * (0.6 + Math.random() * 0.4);
         this.emit('levels', Array.from(this.bars), m, m + 6);
       }
     });
     await rec.startAsync();
     this.nRec = rec;
-    this.nStartT = Date.now();
     this.state = 'recording';
     this.emit('state', this.state);
   }
@@ -778,22 +746,16 @@ class Engine {
     }
   }
 
-  private async nativeStop(): Promise<any> {
-    const rec = this.nRec;
-    if (!rec) throw new Error('not recording');
-    const st: any = await rec.stopAndUnloadAsync();
-    const uri = rec.getURI();
+  private async nativeStop() {
+    if (!this.nRec) throw new Error('Not recording');
+    const st = await this.nRec.getStatusAsync();
+    const dur = st.durationMillis || 0;
+    await this.nRec.stopAndUnloadAsync();
+    const url = this.nRec.getURI() || '';
     this.nRec = null;
     this.state = 'idle';
     this.emit('state', this.state);
-    this.bars.fill(0);
-    this.emit('levels', Array.from(this.bars), -72, -72);
-    await AvAudio.setAudioModeAsync({ allowsRecordingIOS: false });
-    return {
-      url: uri || '',
-      durationMs: st?.durationMillis || Date.now() - this.nStartT,
-      dataUriPromise: Promise.resolve(''),
-    };
+    return { url, durationMs: dur, dataUriPromise: Promise.resolve(url) };
   }
 
   private async nativeDiscard() {
@@ -803,45 +765,36 @@ class Engine {
     }
     this.state = 'idle';
     this.emit('state', this.state);
-    this.emit('tick', 0);
-    this.bars.fill(0);
-    this.emit('levels', Array.from(this.bars), -72, -72);
   }
 
   private async nativePlayPause() {
-    try {
-      if (!this.nSound) {
-        if (!this.pUrlA) return;
-        const { sound } = await AvAudio.Sound.createAsync(
-          { uri: this.pUrlA },
-          { shouldPlay: true },
-          (st: any) => {
-            if (!st) return;
-            if (st.isLoaded) {
-              this.emit('player', {
-                playing: !!st.isPlaying,
-                positionMs: st.positionMillis || 0,
-                durationMs: st.durationMillis || 0,
-                mode: 'raw' as PlayerMode,
-              });
-              if (st.didJustFinish) {
-                this.emit('player', {
-                  playing: false,
-                  positionMs: 0,
-                  durationMs: st.durationMillis || 0,
-                  mode: 'raw' as PlayerMode,
-                });
-              }
-            }
-          }
-        );
-        this.nSound = sound;
-      } else {
-        const st: any = await this.nSound.getStatusAsync();
-        if (st?.isPlaying) await this.nSound.pauseAsync();
-        else if (st?.isLoaded) await this.nSound.playAsync();
-      }
-    } catch {}
+    if (!this.nSound && this.pUrlA) {
+      const { sound } = await AvAudio.Sound.createAsync(
+        { uri: this.pUrlA },
+        { shouldPlay: true }
+      );
+      this.nSound = sound;
+      this.nSound.setOnPlaybackStatusUpdate((st: any) => {
+        if (st.isLoaded) {
+          this.emit('player', {
+            playing: st.isPlaying,
+            positionMs: st.positionMillis,
+            durationMs: st.durationMillis || 0,
+            mode: 'raw',
+          });
+        }
+      });
+      return;
+    }
+    if (this.nSound) {
+      const st: any = await this.nSound.getStatusAsync();
+      if (st.isPlaying) await this.nSound.pauseAsync();
+      else await this.nSound.playAsync();
+    }
+  }
+
+  private async nativeSeek(ms: number) {
+    if (this.nSound) await this.nSound.setPositionAsync(ms);
   }
 }
 
