@@ -20,12 +20,11 @@ import { fmtMs } from '../lib/format';
 
 type EngineStateName = 'idle' | 'recording' | 'paused';
 
-// -------- meter-isolated pieces (rerender at meter rate only) --------
-
 function LiveHeader({ engineState, playing }: { engineState: EngineStateName; playing: boolean }) {
   const { rmsDb } = useMeter();
   const blink = useRef(new Animated.Value(1)).current;
   const recording = engineState === 'recording';
+  
   useEffect(() => {
     if (!recording) return;
     const anim = Animated.loop(
@@ -49,6 +48,8 @@ function LiveHeader({ engineState, playing }: { engineState: EngineStateName; pl
     ? 'PLAYBACK — MONITOR'
     : 'INPUT — Boya BY-M1 Condenser';
 
+  const safeRms = typeof rmsDb === 'number' && !isNaN(rmsDb) ? rmsDb : -72;
+
   return (
     <View style={st.recTopRow}>
       <View style={st.liveLabelRow}>
@@ -63,7 +64,7 @@ function LiveHeader({ engineState, playing }: { engineState: EngineStateName; pl
         </Text>
       </View>
       <Text style={[st.dbfs, mono]} numberOfLines={1}>
-        {rmsDb <= -70 ? '−−.−' : rmsDb.toFixed(1)} dBFS
+        {safeRms <= -70 ? '−−.−' : safeRms.toFixed(1)} dBFS
       </Text>
     </View>
   );
@@ -75,7 +76,7 @@ function LiveVisualizer({ engineState, playing }: { engineState: EngineStateName
     engineState === 'recording' ? 'red' : playing ? 'cyan' : 'idle';
   return (
     <Visualizer
-      bars={bars}
+      bars={bars || new Array(64).fill(0)}
       color={color}
       idle={engineState === 'idle' && !playing}
       height={128}
@@ -85,10 +86,11 @@ function LiveVisualizer({ engineState, playing }: { engineState: EngineStateName
 
 function BigCounter({ engineState }: { engineState: EngineStateName }) {
   const { elapsedMs } = useMeter();
+  const safeMs = typeof elapsedMs === 'number' && !isNaN(elapsedMs) ? elapsedMs : 0;
   return (
     <View style={st.counterWrap}>
       <Text style={[st.counter, mono]} numberOfLines={1}>
-        {fmtMs(engineState === 'idle' ? 0 : elapsedMs)}
+        {fmtMs(engineState === 'idle' ? 0 : safeMs)}
       </Text>
       {engineState === 'paused' ? <Text style={st.pausedTag}>PAUSED</Text> : null}
     </View>
@@ -97,8 +99,12 @@ function BigCounter({ engineState }: { engineState: EngineStateName }) {
 
 function MeterStrip({ engineState }: { engineState: EngineStateName }) {
   const { rmsDb, peakDb } = useMeter();
-  const levelPct = Math.max(0, Math.min(1, (rmsDb + 60) / 60));
-  const peakPct = Math.max(0, Math.min(1, (peakDb + 60) / 60));
+  const safeRms = typeof rmsDb === 'number' && !isNaN(rmsDb) ? rmsDb : -72;
+  const safePeak = typeof peakDb === 'number' && !isNaN(peakDb) ? peakDb : -72;
+
+  const levelPct = Math.max(0, Math.min(1, (safeRms + 60) / 60));
+  const peakPct = Math.max(0, Math.min(1, (safePeak + 60) / 60));
+
   return (
     <View style={st.meterRow}>
       <Ionicons name="speedometer" size={12} color={C.dim} />
@@ -107,21 +113,19 @@ function MeterStrip({ engineState }: { engineState: EngineStateName }) {
           style={[
             st.meterFill,
             {
-              width: `${levelPct * 100}%`,
+              width: `${(levelPct * 100).toFixed(1)}%`,
               backgroundColor: engineState === 'recording' ? C.red : C.cyan,
             },
           ]}
         />
-        <View style={[st.meterPeakTick, { left: `${peakPct * 100}%` }]} />
+        <View style={[st.meterPeakTick, { left: `${(peakPct * 100).toFixed(1)}%` }]} />
       </View>
       <Text style={[st.meterDb, mono]} numberOfLines={1}>
-        pk {peakDb <= -70 ? '−−' : peakDb.toFixed(0)}
+        pk {safePeak <= -70 ? '−−' : safePeak.toFixed(0)}
       </Text>
     </View>
   );
 }
-
-// -------- screen --------
 
 export default function StudioScreen() {
   const {
@@ -146,7 +150,8 @@ export default function StudioScreen() {
   const press = useRef(new Animated.Value(0)).current;
   const scale = press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.88] });
 
-  const gainDb = inputGain <= 0.02 ? '−∞ dB' : `${(20 * Math.log10(inputGain)).toFixed(1)} dB`;
+  const safeGain = typeof inputGain === 'number' && inputGain > 0.02 ? inputGain : 0.02;
+  const gainDb = safeGain <= 0.02 ? '−∞ dB' : `${(20 * Math.log10(safeGain)).toFixed(1)} dB`;
 
   return (
     <SafeAreaView style={st.safe} edges={['top']}>
@@ -290,7 +295,7 @@ const st = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyInContent: 'space-between',
     gap: 10,
     paddingHorizontal: 2,
   },
