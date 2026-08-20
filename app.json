@@ -19,25 +19,14 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {},
-    "extra": {
-      "eas": {
-        "projectId": "552f0665-e30d-4f11-9ea9-97bc22a22809"
-      }
-    },
-    "updates": {
-      "url": "https://u.expo.dev/552f0665-e30d-4f11-9ea9-97bc22a22809"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "owner": "arcadalabs",
     "platforms": [
       "ios",
       "android",
       "web"
     ],
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-av"
     ]
   }
 }
