@@ -1,4 +1,4 @@
-name: Quick Build Android APK
+name: Build Android APK via GitHub Actions
 
 on:
   workflow_dispatch:
@@ -27,18 +27,18 @@ jobs:
       - name: Generate Native Code
         run: npx expo prebuild --platform android --clean
 
-      - name: Bundle JS Offline
+      - name: Bundle JavaScript Code
         run: |
           mkdir -p android/app/src/main/assets
-          npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
+          npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/ --reset-cache
 
-      - name: Build Fast APK with Gradle
+      - name: Build APK with Gradle
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug -x lint -x test --continue
+          ./gradlew assembleDebug -x lint -x test
 
-      - name: Upload APK
+      - name: Upload Working APK
         uses: actions/upload-artifact@v4
         with:
           name: zihuu-audio-recorder-apk
