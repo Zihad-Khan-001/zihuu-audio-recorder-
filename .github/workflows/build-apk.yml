@@ -27,10 +27,14 @@ jobs:
       - name: Generate Native Code
         run: npx expo prebuild --platform android --clean
 
-      - name: Bundle JavaScript Code
+      - name: Export Expo Bundle
+        run: npx expo export --platform android
+
+      - name: Copy Bundle to Android Assets
         run: |
           mkdir -p android/app/src/main/assets
-          npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/ --reset-cache
+          cp -r dist/_expo/static/js/android/* android/app/src/main/assets/index.android.bundle 2>/dev/null || true
+          cp -r dist/* android/app/src/main/assets/ 2>/dev/null || true
 
       - name: Build APK with Gradle
         run: |
