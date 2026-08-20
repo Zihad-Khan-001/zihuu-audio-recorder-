@@ -9,17 +9,22 @@ export const C = {
   dim: '#8E8E93',
   dimmer: '#636367',
   red: '#FF4757',
-  redSoft: 'rgba(255,71,87,0.16)',
+  redSoft: '#FF475729',
   cyan: '#00E5CC',
-  cyanSoft: 'rgba(0,229,204,0.14)',
+  cyanSoft: '#00E5CC24',
   blue: '#0A84FF',
-  blueSoft: 'rgba(10,132,255,0.16)',
+  blueSoft: '#0A84FF29',
   amber: '#FFD60A',
   green: '#30D158',
   violet: '#BF5AF2',
 };
 
-export const R = { card: 22, row: 14, pill: 999, btn: 28 };
+export const R = { 
+  card: 22, 
+  row: 14, 
+  pill: 999, 
+  btn: 28 
+};
 
 export const mono = {
   fontVariant: ['tabular-nums'] as any,
