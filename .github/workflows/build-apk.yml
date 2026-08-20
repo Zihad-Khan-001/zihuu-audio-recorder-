@@ -1,4 +1,4 @@
-name: Build Android APK via GitHub Actions
+name: Build Working Android APK
 
 on:
   workflow_dispatch:
@@ -24,25 +24,23 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Generate Native Code
+      - name: Expo Prebuild Native Project
         run: npx expo prebuild --platform android --clean
 
-      - name: Export Expo Bundle
-        run: npx expo export --platform android
-
-      - name: Copy Bundle to Android Assets
+      - name: Bundle JavaScript & Native Assets
         run: |
           mkdir -p android/app/src/main/assets
+          npx expo export --platform android
           cp -r dist/_expo/static/js/android/* android/app/src/main/assets/index.android.bundle 2>/dev/null || true
           cp -r dist/* android/app/src/main/assets/ 2>/dev/null || true
 
-      - name: Build APK with Gradle
+      - name: Build Android Debug APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug -x lint -x test
 
-      - name: Upload Working APK
+      - name: Upload Final Working APK
         uses: actions/upload-artifact@v4
         with:
           name: zihuu-audio-recorder-apk
