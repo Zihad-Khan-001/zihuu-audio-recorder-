@@ -38,17 +38,28 @@ export default function DSPLabScreen() {
   } = useEngine();
   const [sheet, setSheet] = useState(false);
 
-  const s = settings;
-  const profile = PROFILES.find((p) => p.id === s.profileId);
+  const s = settings || {};
+  const profile = PROFILES?.find((p) => p.id === s.profileId);
   const busy = !!masteringTakeId;
 
-  const setBand = (key: 'hp' | 'body' | 'box' | 'diction' | 'air', patch: any) =>
-    updateSettings({ [key]: { ...s[key], ...patch } } as any);
-
-  const cycle = (arr: number[], cur: number) => {
-    const i = arr.indexOf(cur);
-    return arr[(i + 1) % arr.length];
+  const setBand = (key: 'hp' | 'body' | 'box' | 'diction' | 'air', patch: any) => {
+    if (s[key]) {
+      updateSettings({ [key]: { ...s[key], ...patch } } as any);
+    }
   };
+
+  const cycleSafe = (arr: number[], cur: number) => {
+    const idx = arr.indexOf(cur);
+    if (idx === -1) return arr[0];
+    return arr[(idx + 1) % arr.length];
+  };
+
+  // Safe Fallbacks
+  const bodyGain = s.body?.gain ?? 0;
+  const boxGain = s.box?.gain ?? 0;
+  const dictionGain = s.diction?.gain ?? 0;
+  const airGain = s.air?.gain ?? 0;
+  const deesserMaxDb = typeof s.deesserMaxDb === 'number' ? s.deesserMaxDb : 0;
 
   return (
     <SafeAreaView style={st.safe} edges={['top']}>
@@ -58,7 +69,7 @@ export default function DSPLabScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={st.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={st.title}>DSP Lab</Text>
             <Text style={st.subtitle} numberOfLines={1}>
               Naishabda নৈঃশব্দ speech chain • render offline
@@ -92,11 +103,11 @@ export default function DSPLabScreen() {
             />
           </View>
           <View style={st.chipRow}>
-            <BandChip label={`B ${fmtDb(s.body.gain)}`} color={C.red} dim={!s.body.on} />
-            <BandChip label={`X ${fmtDb(s.box.gain)}`} color={C.amber} dim={!s.box.on} />
-            <BandChip label={`D ${fmtDb(s.diction.gain)}`} color={C.cyan} dim={!s.diction.on} />
-            <BandChip label={`DS -${s.deesserMaxDb.toFixed(1)}`} color={C.violet} dim={!s.deesserOn} />
-            <BandChip label={`A ${fmtDb(s.air.gain)}`} color={C.blue} dim={!s.air.on} />
+            <BandChip label={`B ${fmtDb(bodyGain)}`} color={C.red} dim={!s.body?.on} />
+            <BandChip label={`X ${fmtDb(boxGain)}`} color={C.amber} dim={!s.box?.on} />
+            <BandChip label={`D ${fmtDb(dictionGain)}`} color={C.cyan} dim={!s.diction?.on} />
+            <BandChip label={`DS -${deesserMaxDb.toFixed(1)}`} color={C.violet} dim={!s.deesserOn} />
+            <BandChip label={`A ${fmtDb(airGain)}`} color={C.blue} dim={!s.air?.on} />
           </View>
           <SettingRow
             icon="trending-down"
@@ -105,7 +116,7 @@ export default function DSPLabScreen() {
             subtitle="4th-order Butterworth HP • kills rumble & mic pops"
             right={
               <Switch
-                value={s.hp.on}
+                value={!!s.hp?.on}
                 onValueChange={(v) => setBand('hp', { on: v })}
                 trackColor={{ false: C.line2, true: C.red }}
                 thumbColor="#FFF"
@@ -119,9 +130,9 @@ export default function DSPLabScreen() {
             subtitle="মিষ্টি রেস warm velvety resonance"
             right={
               <>
-                <ValueText color={C.red}>{fmtDb(s.body.gain)}</ValueText>
+                <ValueText color={C.red}>{fmtDb(bodyGain)}</ValueText>
                 <Switch
-                  value={s.body.on}
+                  value={!!s.body?.on}
                   onValueChange={(v) => setBand('body', { on: v })}
                   trackColor={{ false: C.line2, true: C.red }}
                   thumbColor="#FFF"
@@ -136,9 +147,9 @@ export default function DSPLabScreen() {
             subtitle="Sweeps muffled small-room boxiness"
             right={
               <>
-                <ValueText color={C.amber}>{fmtDb(s.box.gain)}</ValueText>
+                <ValueText color={C.amber}>{fmtDb(boxGain)}</ValueText>
                 <Switch
-                  value={s.box.on}
+                  value={!!s.box?.on}
                   onValueChange={(v) => setBand('box', { on: v })}
                   trackColor={{ false: C.line2, true: C.amber }}
                   thumbColor="#FFF"
@@ -153,9 +164,9 @@ export default function DSPLabScreen() {
             subtitle="প ত ক চ consonants 100% sharp"
             right={
               <>
-                <ValueText color={C.cyan}>{fmtDb(s.diction.gain)}</ValueText>
+                <ValueText color={C.cyan}>{fmtDb(dictionGain)}</ValueText>
                 <Switch
-                  value={s.diction.on}
+                  value={!!s.diction?.on}
                   onValueChange={(v) => setBand('diction', { on: v })}
                   trackColor={{ false: C.line2, true: C.cyan }}
                   thumbColor="#FFF"
@@ -170,9 +181,9 @@ export default function DSPLabScreen() {
             subtitle="Delicate breath texture sheen"
             right={
               <>
-                <ValueText color={C.blue}>{fmtDb(s.air.gain)}</ValueText>
+                <ValueText color={C.blue}>{fmtDb(airGain)}</ValueText>
                 <Switch
-                  value={s.air.on}
+                  value={!!s.air?.on}
                   onValueChange={(v) => setBand('air', { on: v })}
                   trackColor={{ false: C.line2, true: C.blue }}
                   thumbColor="#FFF"
@@ -192,7 +203,7 @@ export default function DSPLabScreen() {
             subtitle="Learned-style hiss isolation before dynamics"
             right={
               <Switch
-                value={s.denoiseOn}
+                value={!!s.denoiseOn}
                 onValueChange={(v) => updateSettings({ denoiseOn: v })}
                 trackColor={{ false: C.line2, true: C.green }}
                 thumbColor="#FFF"
@@ -208,14 +219,14 @@ export default function DSPLabScreen() {
                 <StudioSlider
                   mini
                   fixedW={118}
-                  value={s.gateThresholdDb}
+                  value={s.gateThresholdDb ?? -50}
                   min={-70}
                   max={-30}
                   step={1}
                   onChange={(v) => updateSettings({ gateThresholdDb: v, gateOn: true })}
                   color={C.cyan}
                 />
-                <ValueText color={C.cyan}>{s.gateThresholdDb.toFixed(0)} dB</ValueText>
+                <ValueText color={C.cyan}>{(s.gateThresholdDb ?? -50).toFixed(0)} dB</ValueText>
               </View>
             }
           />
@@ -224,9 +235,9 @@ export default function DSPLabScreen() {
             iconColor={C.violet}
             title="Gate Floor (silence = absolute 0%)"
             onPress={() =>
-              updateSettings({ gateFloorDb: cycle(FLOORS, s.gateFloorDb) })
+              updateSettings({ gateFloorDb: cycleSafe(FLOORS, s.gateFloorDb ?? -80) })
             }
-            right={<ValueText color={C.violet}>{s.gateFloorDb} dBFS</ValueText>}
+            right={<ValueText color={C.violet}>{s.gateFloorDb ?? -80} dBFS</ValueText>}
           />
           <SettingRow
             icon="shield"
@@ -244,10 +255,10 @@ export default function DSPLabScreen() {
             icon="git-compare"
             iconColor={C.blue}
             title="Soft-Knee Compressor"
-            subtitle={`Single-pass • ${s.compKneeDb.toFixed(0)} dB knee • thr ${s.compThresholdDb} dB`}
+            subtitle={`Single-pass • ${(s.compKneeDb ?? 6).toFixed(0)} dB knee • thr ${s.compThresholdDb ?? -18} dB`}
             right={
               <Switch
-                value={s.compOn}
+                value={!!s.compOn}
                 onValueChange={(v) => updateSettings({ compOn: v })}
                 trackColor={{ false: C.line2, true: C.blue }}
                 thumbColor="#FFF"
@@ -263,14 +274,14 @@ export default function DSPLabScreen() {
                 <StudioSlider
                   mini
                   fixedW={118}
-                  value={s.compRatio}
+                  value={s.compRatio ?? 3}
                   min={1.5}
                   max={8}
                   step={0.1}
                   onChange={(v) => updateSettings({ compRatio: Math.round(v * 10) / 10 })}
                   color={C.blue}
                 />
-                <ValueText color={C.blue}>{s.compRatio.toFixed(1)}:1</ValueText>
+                <ValueText color={C.blue}>{(s.compRatio ?? 3).toFixed(1)}:1</ValueText>
               </View>
             }
           />
@@ -288,7 +299,7 @@ export default function DSPLabScreen() {
             }}
             right={
               <ValueText color={C.blue}>
-                {s.compAttackMs} ms / {s.compReleaseMs} ms
+                {s.compAttackMs ?? 12} ms / {s.compReleaseMs ?? 80} ms
               </ValueText>
             }
           />
@@ -304,7 +315,7 @@ export default function DSPLabScreen() {
             iconColor={C.red}
             title="True-Peak Lookahead Limiter"
             subtitle="4x oversampled • zero clipping guaranteed"
-            right={<ValueText color={C.red}>{s.limiterCeilingDb.toFixed(1)} dBTP</ValueText>}
+            right={<ValueText color={C.red}>{(s.limiterCeilingDb ?? -1.5).toFixed(1)} dBTP</ValueText>}
             last
           />
         </Card>
@@ -318,7 +329,7 @@ export default function DSPLabScreen() {
             subtitle="Silent treated-booth simulation"
             right={
               <Switch
-                value={s.reverbOn}
+                value={!!s.reverbOn}
                 onValueChange={(v) => updateSettings({ reverbOn: v })}
                 trackColor={{ false: C.line2, true: C.violet }}
                 thumbColor="#FFF"
@@ -334,14 +345,14 @@ export default function DSPLabScreen() {
                 <StudioSlider
                   mini
                   fixedW={118}
-                  value={s.reverbWet}
+                  value={s.reverbWet ?? 0.05}
                   min={0}
                   max={0.3}
                   step={0.01}
                   onChange={(v) => updateSettings({ reverbWet: v })}
                   color={C.violet}
                 />
-                <ValueText color={C.violet}>{Math.round(s.reverbWet * 100)}%</ValueText>
+                <ValueText color={C.violet}>{Math.round((s.reverbWet ?? 0.05) * 100)}%</ValueText>
               </View>
             }
           />
@@ -349,15 +360,19 @@ export default function DSPLabScreen() {
             icon="time"
             iconColor={C.violet}
             title="Decay Time"
-            onPress={() => updateSettings({ reverbDecaySec: cycle(DECAYS, s.reverbDecaySec) })}
-            right={<ValueText color={C.violet}>{s.reverbDecaySec.toFixed(1)} s</ValueText>}
+            onPress={() =>
+              updateSettings({ reverbDecaySec: cycleSafe(DECAYS, s.reverbDecaySec ?? 1.0) })
+            }
+            right={<ValueText color={C.violet}>{(s.reverbDecaySec ?? 1.0).toFixed(1)} s</ValueText>}
           />
           <SettingRow
             icon="hourglass"
             iconColor={C.violet}
             title="Pre-Delay"
-            onPress={() => updateSettings({ reverbPredelayMs: cycle(PREDELAYS, s.reverbPredelayMs) })}
-            right={<ValueText color={C.violet}>{s.reverbPredelayMs} ms</ValueText>}
+            onPress={() =>
+              updateSettings({ reverbPredelayMs: cycleSafe(PREDELAYS, s.reverbPredelayMs ?? 18) })
+            }
+            right={<ValueText color={C.violet}>{s.reverbPredelayMs ?? 18} ms</ValueText>}
             last
           />
         </Card>
