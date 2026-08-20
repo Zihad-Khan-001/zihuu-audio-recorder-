@@ -1,6 +1,7 @@
+import 'react-native-gesture-handler';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { useFonts } from 'expo-font';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
@@ -29,11 +30,13 @@ const navTheme: Theme = {
 };
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
   });
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded && !fontError) {
+    return <View style={{ flex: 1, backgroundColor: C.bg }} />;
+  }
 
   return (
     <SafeAreaProvider>
